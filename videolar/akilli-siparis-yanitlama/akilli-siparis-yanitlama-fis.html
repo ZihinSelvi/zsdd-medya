@@ -1,0 +1,234 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sipariş Fişi</title>
+<!--
+  STİL KARTI (ozansihay-motion)
+  Tez: WhatsApp'tan dağınık gelen mesajlar, sistem devreye girince tek bir net sipariş fişine dönüşür.
+  Yöntem: Mekanizma çiz + sözcüğü olay yap (mesaj parçaları → fiş satırları).
+  Malzeme: Saf tipografi + ZSDD logosu; fiş, restoran adisyon yazıcısının fişi.
+  Kadraj: Sola yaslı, "kaos" kelimesi tek dev nesne; fiş sola yaslı sütun, sağ taraf boş.
+  Zaman: 30 fps. Damga (easing yok), dolly (0.55,0,0.1,1), adımlı yazıcı beslemesi (3 kare doğrusal + 6 kare durma), terk (0.7,0,0.84,0).
+  Font: Argentum Sans 300/800 (ZSDD kurumsal ailesi) + IBM Plex Mono 500 (termal fiş yazısı).
+  Marka kiti: ZSDD (palet, font ve orijinal logo assets/zsdd-logo.png).
+  Palet: ZSDD marka kiti — koyu lacivert #033260 zemin, beyaz, açık mavi #afe1fb, mavi #139ed5 (yalnız yazıcı ağzı), lacivert #014aad. Fiş kâğıdı beyaz.
+  Doku: Yok (marka düz renk).
+  İmza öğe: Adım adım yükselen sipariş fişi.
+  Ses: Tezgâhta titreyen telefon (kaos), tam sessizlik, yazıcı beslemesi, tek enstrüman kalimba (çözüm).
+  Kullanılmayacaklar: sohbet balonu / telefon mockup'ı, aşağıdan fade+slide-up, kelime kelime pop, renkli tek kelime vurgusu, 01/02 etiketleri, whoosh.
+-->
+<style>
+  /* Gömülü fontlar. Argentum Sans (ZSDD kurumsal ailesi): tek dosya Türkçe harflerin hepsini içerir,
+     bu yüzden unicode-range verilmez. Plex Mono: latin + latin-ext. */
+  @font-face { font-family: 'Argentum Sans'; font-weight: 300; src: url(fonts/argentum-sans-latin-300-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'Argentum Sans'; font-weight: 800; src: url(fonts/argentum-sans-latin-800-normal.woff2) format('woff2'); }
+  @font-face { font-family: 'IBM Plex Mono'; font-weight: 500; src: url(fonts/ibm-plex-mono-latin-500-normal.woff2) format('woff2');
+    unicode-range: U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD; }
+  @font-face { font-family: 'IBM Plex Mono'; font-weight: 500; src: url(fonts/ibm-plex-mono-latin-ext-500-normal.woff2) format('woff2');
+    unicode-range: U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF; }
+
+  :root {
+    --koyu: #033260; --lacivert: #014aad; --mavi: #139ed5; --acik: #afe1fb; --beyaz: #ffffff;
+    --sans: 'Argentum Sans', sans-serif; --mono: 'IBM Plex Mono', monospace;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 100%; height: 100%; background: var(--koyu); overflow: hidden; }
+  #stage { position: absolute; left: 50%; top: 50%; width: 1080px; height: 1920px;
+           background: var(--koyu); overflow: hidden; transform-origin: 50% 50%; font-family: var(--sans); }
+  .abs { position: absolute; }
+  .q { position: absolute; }                     /* logo kareleri */
+
+  /* Sahne 1: beyaz levha üstünde logo */
+  #s1 { inset: 0; background: var(--beyaz); }
+  #logo1 { left: 130px; top: 470px; width: 440px; height: 440px; }   /* orijinal logo, tek parça */
+  #s1sub { left: 130px; top: 970px; font-weight: 800; font-size: 72px; line-height: 1.05; color: var(--koyu); letter-spacing: -0.02em; }
+
+  /* Sahne 2: mesaj parçaları + soru */
+  .frag { position: absolute; white-space: nowrap; font-weight: 300; color: var(--acik); line-height: 1; }
+  .big  { position: absolute; left: 130px; font-weight: 800; color: var(--beyaz); line-height: 1.02; letter-spacing: -0.02em; }
+  #h2a { top: 1020px; font-size: 96px; }
+  #h2k { top: 1225px; left: 112px; font-size: 350px; line-height: 0.86; letter-spacing: -0.045em; }   /* Argentum geniş: 820 px alana sığacak punto */
+  #h2b { top: 1560px; font-size: 96px; }
+
+  /* Sahne 3-4: başlık, gövde, yazıcı ve fiş */
+  #t3  { left: 130px; top: 262px; font-weight: 800; font-size: 100px; color: var(--beyaz); letter-spacing: -0.02em; line-height: 1; }
+  #b3a { left: 132px; top: 400px; font-weight: 300; font-size: 50px; color: var(--acik); }
+  #b3b { left: 132px; top: 462px; font-weight: 800; font-size: 50px; color: var(--beyaz); }
+  #slot { left: 130px; top: 1240px; width: 640px; height: 8px; background: var(--mavi); transform-origin: 0 0; }
+  #clip { left: 160px; top: 0; width: 580px; height: 1240px; overflow: hidden; }
+  #paper { position: absolute; left: 0; width: 580px; background: var(--beyaz); overflow: hidden; }
+  .row { position: absolute; left: 34px; right: 34px; height: 56px; display: flex; justify-content: space-between;
+         align-items: center; font-family: var(--mono); font-weight: 500; font-size: 30px; color: var(--koyu); white-space: nowrap; }
+  .row.cizgi { color: var(--lacivert); letter-spacing: 0.05em; }
+  .row.vurgu { color: var(--lacivert); }
+  #sign1 { left: 130px; top: 1330px; font-weight: 800; font-size: 72px; color: var(--beyaz); letter-spacing: -0.02em; }
+  #sign2 { left: 130px; top: 1410px; font-weight: 300; font-size: 72px; color: var(--acik); letter-spacing: -0.01em; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <!-- SAHNE 1 -->
+  <div id="s1" class="abs">
+    <img id="logo1" class="abs" src="assets/zsdd-logo.png" alt="Zihni Selvi Dijital Danışmanlık">
+    <div id="s1sub" class="abs">Akıllı Sipariş<br>Yanıtlama</div>
+  </div>
+
+  <!-- SAHNE 2 -->
+  <div id="s2" class="abs" style="inset:0">
+    <div id="frags"></div>
+    <div id="h2a" class="big">WS'den gelen<br>siparişler</div>
+    <div id="h2k" class="big">kaos</div>
+    <div id="h2b" class="big">mu yaratıyor?</div>
+  </div>
+
+  <!-- SAHNE 3-4 -->
+  <div id="s3" class="abs" style="inset:0">
+    <div id="t3" class="abs">Sistem devrede.</div>
+    <div id="b3a" class="abs">Talepleri anında karşıla,</div>
+    <div id="b3b" class="abs">net siparişe dönüştür.</div>
+    <div id="clip" class="abs"><div id="paper"></div></div>
+    <div id="slot" class="abs"></div>
+    <div id="sign1" class="abs">Zihni Selvi</div>
+    <div id="sign2" class="abs">Dijital Danışmanlık</div>
+  </div>
+</div>
+
+<script>
+const FPS = 30, TOPLAM = 600;                       // 20 saniye
+const $ = id => document.getElementById(id);
+const klamp = (x, a = 0, b = 1) => Math.min(b, Math.max(a, x));
+function bezier(x1, y1, x2, y2) {                   // CSS ile aynı cubic-bezier
+  const cx = 3*x1, bx = 3*(x2-x1) - cx, ax = 1 - cx - bx;
+  const cy = 3*y1, by = 3*(y2-y1) - cy, ay = 1 - cy - by;
+  const X = t => ((ax*t + bx)*t + cx)*t, Y = t => ((ay*t + by)*t + cy)*t, dX = t => (3*ax*t + 2*bx)*t + cx;
+  return x => { let t = klamp(x); for (let i = 0; i < 8; i++) { const e = X(t) - x, d = dX(t);
+    if (Math.abs(e) < 1e-5 || Math.abs(d) < 1e-6) break; t -= e / d; } return Y(klamp(t)); };
+}
+const dolly = bezier(0.55, 0, 0.1, 1), terk = bezier(0.7, 0, 0.84, 0), lin = x => x;
+const ip = (f, [f0, f1], [a, b], e = lin) => a + (b - a) * e(klamp((f - f0) / (f1 - f0)));
+const tr = s => s.toLocaleUpperCase('tr-TR');
+
+/* ---------- OLAY LİSTESİ (kare numaraları; ses betiği de bunu okur) ---------- */
+const S1 = { logo: 9, alt: 34 };                                       // 0–104 beyaz levha; 58'den sonra durgun
+const KESME2 = 105;                                                     // sert kesme: kaos
+const FRAG = [                                                          // [metin, x, y, px, kare, renk]
+  ['merhaba sipariş verebilir miyim', 150, 300, 44, 112],
+  ['2 lahmacun acısız olsun', 330, 420, 58, 126],
+  ['menüyü atar mısınız', -40, 545, 50, 138],
+  ['1 ayran da ekle', 560, 625, 46, 149],
+  ['künefe var mı', 190, 705, 64, 158],
+  ['adres aynı abi', 650, 330, 40, 166],
+  ['kaç dk sürer?', 90, 830, 52, 173],
+  ['2 değil 3 lahmacun', 470, 785, 56, 179],
+  ['kapıda kartla ödeyeceğim', 260, 910, 42, 184],
+  ['acısız dedim ama', 700, 505, 44, 188],
+  ['hâlâ bekliyorum', 520, 238, 54, 192, 'b'],
+  ['?', 905, 860, 130, 195, 'b'],
+];
+const S2 = { soru1: 200, kaos: 218, soru2: 232 };                       // sessizlik 200'den 288'e
+const KESME3 = 270;
+const S3 = { baslik: 288, agiz: [318, 330], govde1: 440, govde2: 452, cikis: 488 };
+const FIS = [                                                           // [sol, sağ, tür]
+  ['Sipariş no 0427', '21:07'], ['-'], ['3 x Lahmacun (acısız)'], ['1 x Ayran'], ['1 x Künefe'], ['-'],
+  ['Ödeme', 'kapıda kart'], ['Adres', 'kayıtlı'], ['Teslim', '30 dk'], ['-'], ['Durum', 'onaylandı', 'vurgu'],
+  ['-'], ['logo'], [''], [''], ['Afiyet olsun', '', 'vurgu'],
+];
+const ILK_BESLEME = 336, BESLEME_ARA = 9, S4_BESLEME = 498;            // yazıcı: 9 karede bir satır (müzikteki sekizlik)
+const besleme = i => i <= 10 ? ILK_BESLEME + i * BESLEME_ARA : S4_BESLEME + (i - 11) * BESLEME_ARA;
+const IMZA = 537;                                                      // biter 569; son 1 sn tamamen durgun
+const SATIR = 56, KAFA = 56, AGIZ_Y = 1240;
+
+/* Ses betiği için olay dökümü */
+window.SES = {
+  fps: FPS, toplam: TOPLAM, muzik: ILK_BESLEME - 5 * BESLEME_ARA, sekizlik: BESLEME_ARA,
+  blok: [S1.logo], titresim: FRAG.map(f => f[4]), besleme: FIS.map((_, i) => besleme(i)),
+  sessizlik: [S2.soru1, S3.baslik],
+};
+
+/* ---------- DOM kurulumu ---------- */
+FRAG.forEach(([t, x, y, px, , r], i) => {
+  const d = document.createElement('div');
+  d.className = 'frag'; d.id = 'fr' + i; d.textContent = t;
+  Object.assign(d.style, { left: x + 'px', top: y + 'px', fontSize: px + 'px' });
+  if (r === 'b') { d.style.color = 'var(--beyaz)'; d.style.fontWeight = 800; }
+  $('frags').appendChild(d);
+});
+FIS.forEach(([sol, sag, tur], i) => {
+  const r = document.createElement('div');
+  r.className = 'row'; r.style.top = (40 + i * SATIR) + 'px';
+  if (sol === '-') { r.classList.add('cizgi'); r.textContent = '-'.repeat(26); }
+  else if (sol === 'logo') {
+    r.style.height = (SATIR * 3) + 'px'; r.style.justifyContent = 'flex-start';
+    r.innerHTML = '<img src="assets/zsdd-logo.png" width="150" height="150" alt="ZSDD">';   // orijinal logo
+  } else {
+    if (tur) r.classList.add(tur);
+    r.innerHTML = `<span>${tr(sol)}</span><span>${tr(sag || '')}</span>`;
+  }
+  $('paper').appendChild(r);
+});
+
+/* ---------- Kare fonksiyonu: her kare yalnız f'ye bağlı ---------- */
+function goster(id, on) { $(id).style.visibility = on ? 'visible' : 'hidden'; }
+function kayGir(id, f, f0, dur, dx = -60) {           // soldan dolly girişi
+  const el = $(id);
+  el.style.opacity = ip(f, [f0, f0 + 8], [0, 1]);
+  el.style.transform = `translateX(${ip(f, [f0, f0 + dur], [dx, 0], dolly)}px)`;
+}
+
+window.renderFrame = function (f) {
+  // Sahne görünürlükleri (sert kesmeler). display kullanılır: alt öğelerdeki
+  // visibility:visible, ebeveyndeki visibility:hidden'ı aşabildiği için.
+  const sahne = (id, on) => { $(id).style.display = on ? 'block' : 'none'; };
+  sahne('s1', f < KESME2); sahne('s2', f >= KESME2 && f < KESME3); sahne('s3', f >= KESME3);
+
+  // S1: logo tek parça damga gibi iner; ürün adı soldan dolly
+  goster('logo1', f >= S1.logo);
+  kayGir('s1sub', f, S1.alt, 24);
+
+  // S2: mesajlar hızlanan aralıklarla damga; soru gelince geri çekilir
+  FRAG.forEach((fr, i) => {
+    const el = $('fr' + i);
+    el.style.visibility = f >= fr[4] ? 'visible' : 'hidden';
+    el.style.opacity = f >= S2.soru1 ? 0.28 : 1;
+  });
+  goster('h2a', f >= S2.soru1); goster('h2k', f >= S2.kaos); goster('h2b', f >= S2.soru2);
+
+  // S3: başlık dolly, yazıcı ağzı soldan çizilir, gövde iki vuruşta
+  kayGir('t3', f, S3.baslik, 24);
+  $('slot').style.width = ip(f, S3.agiz, [0, 640]) + 'px';
+  $('b3a').style.opacity = ip(f, [S3.govde1, S3.govde1 + 6], [0, 1]);
+  $('b3b').style.opacity = ip(f, [S3.govde2, S3.govde2 + 6], [0, 1]);
+  if (f >= S3.cikis) {                                  // hızlanarak terk
+    ['t3', 'b3a', 'b3b'].forEach(id => {
+      $(id).style.opacity = ip(f, [S3.cikis, S3.cikis + 10], [1, 0], terk);
+      $(id).style.transform = `translateX(${ip(f, [S3.cikis, S3.cikis + 10], [0, -90], terk)}px)`;
+    });
+  }
+
+  // Fiş: her beslemede 3 karede bir satır yükselir, 6 kare durur (adımlı motor)
+  let h = 0;
+  FIS.forEach((_, i) => { h += ip(f, [besleme(i), besleme(i) + 3], [0, i === 0 ? KAFA + SATIR : SATIR]); });
+  $('paper').style.height = h + 'px';
+  $('paper').style.top = (AGIZ_Y - h) + 'px';
+
+  // S4: imza, yazıcının altında
+  kayGir('sign1', f, IMZA, 24); kayGir('sign2', f, IMZA + 8, 24);
+};
+
+/* Önizleme döngüsü (render'da kullanılmaz) */
+function sigdir() {
+  const s = Math.min(innerWidth / 1080, innerHeight / 1920);
+  $('stage').style.transform = `translate(-50%, -50%) scale(${s})`;
+}
+addEventListener('resize', sigdir); sigdir();
+if (!window.__RENDER__) {
+  document.fonts.ready.then(() => {
+    const t0 = performance.now();
+    (function dongu(t) { window.renderFrame(Math.floor(((t - t0) / 1000) * FPS) % TOPLAM); requestAnimationFrame(dongu); })(t0);
+  });
+}
+</script>
+</body>
+</html>
